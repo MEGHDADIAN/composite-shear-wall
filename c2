@@ -1,0 +1,125 @@
+E = 70e9 # elastic modulus in Pa
+nu = 0.3 # Poisson's ratio
+rho = 1800 # density in kg/m^3
+laminate = [(0, 0.16), (45, 0.16), (90, 0.16), (-45, 0.16)]
+Q11 = E / (1 - nu ** 2)
+Q12 = nu * Q11
+Q22 = Q11
+Q = [[Q11, Q12, 0], [Q12, Q22, 0], [0, 0, E / (2 * (1 + nu))]]
+S = np.zeros((3, 3))
+for angle, thickness in laminate:
+    rad = np.deg2rad(angle)
+    c = np.cos(rad)
+    s = np.sin(rad)
+    T = [[c ** 2, s ** 2, 2 * c * s],
+         [s ** 2, c ** 2, -2 * c * s],
+         [-c * s, c * s, c ** 2 - s ** 2]]
+    Q_bar = np.dot(np.dot(np.linalg.inv(T), Q), T)
+    z = thickness / 2
+    A = np.array([[1, z, z ** 2], [0, 1, z], [0, 0, 1]])
+    B = np.array([[1, -z, z ** 2], [0, 1, -z], [0, 0, 1]])
+    D = np.array([[1, -z, z ** 2], [0, 1, -z], [0, 0, 1]])
+    B_inv = np.linalg.inv(B)
+    A_inv
+import numpy as np
+# Input data
+height = 6.0 # m
+width = 3.0 # m
+concrete_thickness = 0.15 # m
+steel_plate_thickness = 0.01 # m
+concrete_strength = 30 # MPa
+steel_strength = 360 # MPa
+opening_height = 1.0 # m
+opening_width = 0.5 # m
+applied_load = 500 # kN
+
+# Calculate equivalent thickness without opening
+d_eq = (concrete_thickness + steel_plate_thickness) * (1 + 4.1 * (opening_height / height) * (opening_width / width) * ((steel_plate_thickness / concrete_thickness) ** 2) * (concrete_strength / steel_strength)) # m
+
+# Calculate force reduction factor
+n = np.sqrt(d_eq / concrete_thickness)
+p = applied_load / (width * concrete_thickness)
+r = 1 - ((0.25 * p) / (1 + n + (n ** 2)))
+import os
+import subprocess
+import re
+import math
+
+def run_abq(input_file):
+    """
+    Run Abaqus/Standard using the specified input file
+    and return the output as a string.
+    """
+    # Construct the Abaqus/Standard command and arguments
+    abq_cmd = "abaqus"
+    abq_args = ["job=" + os.path.splitext(input_file)[0], "interactive"]
+    abq_input = os.path.abspath(input_file)
+
+    # Call Abaqus/Standard and capture the output
+    abq_proc = subprocess.run([abq_cmd] + abq_args, input=abq_input,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              universal_newlines=True)
+    abq_output = abq_proc.stdout
+
+    # Return the output as a string
+    return abq_output
+
+def parse_output(output):
+    """
+    Parse the Abaqus/Standard output and extract the
+    maximum equivalent stress and equivalent plastic strain.
+    """
+    max_stress = None
+    max_strain = None
+
+    # Search for the maximum equivalent stress and equivalent plastic strain
+    stress_pattern = r"Maximum equivalent stress\s+=\s+(\S+)"
+    strain_pattern = r"Maximum equivalent plastic strain\s+=\s+(\S+)"
+    stress_match = re.search(stress_pattern, output)
+    strain_match = re.search(strain_pattern, output)
+
+    # If both matches are found, extract the values
+    if stress_match and strain_match:
+        max_stress = float(stress_match.group(1))
+        max_strain = float(strain_match.group(1))
+
+    # Return the maximum equivalent stress and equivalent plastic strain
+    return max_stress, max_strain
+
+def compute_equivalent_thickness(h_concrete, h_steel, fy_steel, fc_concrete, rho_steel):
+    """
+    Compute the equivalent thickness of a composite steel plate
+    shear wall using the specified parameters.
+    """
+    # Compute the effective elastic modulus of the steel plate
+    es_steel = fy_steel / 200000.0
+    n_steel = es_steel / (es_steel + fc_concrete / 1500.0)
+    em_steel = n_steel * es_steel + (1 - n_steel) * fc_concrete / 1500.0
+
+    # Compute the equivalent thickness of the steel plate
+    t_eq = h_steel * math.sqrt(em_steel / fy_steel)
+
+    # Compute the total area of the steel plates
+    a_steel = rho_steel * h_concrete
+
+    # Compute the equivalent thickness of the composite shear wall
+    t_eq_wall = h_concrete + 2 * a_steel / t_eq
+
+    # Return the equivalent thickness of the composite shear wall
+    return t_eq_wall
+
+def compute_force_reduction_factor(eta, t_eq, h_concrete, h_steel, fy_steel, fc_concrete, rho_steel):
+    """
+    Compute the force reduction factor of a composite steel plate
+    shear wall using the specified parameters.
+    """
+    # Compute the equivalent thickness of the composite shear wall
+    t_eq_wall = compute_equivalent_thickness(h_concrete, h_steel, fy_steel, fc_concrete, rho_steel)
+
+    # Compute the force reduction factor using the equivalent thickness and eta
+    f_rf = eta / (1 + (eta - 1) * t_eq_wall / t_eq)
+
+    # Return the force reduction factor
+    return f_rf
+
+def main
