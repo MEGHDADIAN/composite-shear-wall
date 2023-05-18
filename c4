@@ -1,0 +1,61 @@
+import numpy as np
+
+# Reading input data from Abaqus output file
+with open("abaqus_output.txt", "r") as f:
+    lines = f.readlines()
+
+dimensions = [float(x) for x in lines[0].split()]
+concrete_thickness = float(lines[1])
+steel_thickness = float(lines[2])
+concrete_strength = float(lines[3])
+steel_strength = float(lines[4])
+opening_dimensions = [float(x) for x in lines[5].split()]
+loading = [float(x) for x in lines[6].split()]
+
+# Calculating equivalent thickness
+d = dimensions[0] - 2 * concrete_thickness - steel_thickness
+a = dimensions[1] - opening_dimensions[0] - steel_thickness
+b = dimensions[2] - opening_dimensions[1] - steel_thickness
+eq_thickness = (2 / (1 / d + 1 / a + 1 / b + (steel_thickness / d) + (steel_thickness / a) + (steel_thickness / b)))
+
+# Calculating force reduction factor
+h = dimensions[1] - opening_dimensions[0]
+l = dimensions[2] - opening_dimensions[1]
+aspect_ratio = h / l
+if aspect_ratio <= 1:
+    k = 1.0
+elif aspect_ratio >= 2:
+    k = 0.65
+else:
+    k = 1.05 - 0.2 * aspect_ratio
+
+# Calculating equivalent shear modulus
+alpha = steel_thickness / (dimensions[0] - concrete_thickness)
+beta = steel_strength / concrete_strength
+v = 0.3
+g_c = concrete_strength / (2 * (1 + v))
+g_s = steel_strength / (2 * (1 + v))
+eq_shear_modulus = ((1 + alpha * beta) * g_s) / (beta * g_c + g_s)
+
+# Calculating equivalent shear stiffness
+shear_area = eq_thickness * dimensions[1]
+eq_shear_stiffness = eq_shear_modulus * shear_area
+
+# Calculating shear force
+shear_force = loading[1] * (dimensions[0] - concrete_thickness - (steel_thickness / 2))
+
+# Calculating shear stress
+shear_stress = (3 / 2) * (shear_force / shear_area)
+
+# Calculating moment of inertia
+moment_inertia = (dimensions[1] * eq_thickness ** 3) / 12
+
+# Calculating bending stress
+bending_stress = (loading[0] * dimensions[1] * eq_thickness) / (2 * moment_inertia)
+
+# Outputting results
+print("Equivalent Thickness: ", eq_thickness, " m")
+print("Force Reduction Factor: ", k)
+print("Equivalent Shear Stiffness: ", eq_shear_stiffness, " N/m")
+print("Shear Stress: ", shear_stress, " Pa")
+print("Bending Stress: ", bending_stress, " Pa")
