@@ -1,0 +1,56 @@
+import subprocess
+
+# Function to run Abaqus and get output
+def runAbaqus(input_file):
+    subprocess.call(["abaqus", "cae", "noGUI=" + input_file])
+
+    with open("output.txt", "r") as f:
+        output = f.read()
+
+    return output
+
+# Function to parse Abaqus output and calculate equivalent thickness
+def calculateEquivalentThickness(output, b_conc, b_steel, t_conc, t_steel, f_conc, f_steel, a_conc, a_steel, P):
+    # Parse output to get forces and moments at each integration point
+    # and distance of each integration point from the centroid of the section
+    # in the x and y directions
+    forces = []
+    moments = []
+    xs = []
+    ys = []
+    start_forces = output.find("FORCES AND MOMENTS AT EACH INTEGRATION POINT")
+    end_forces = output.find("INTEGRATION POINT COORDINATES")
+    force_data = output[start_forces:end_forces].splitlines()[2:-1]
+    for line in force_data:
+        line = line.split()
+        forces.append([float(x) for x in line[1:4]])
+        moments.append([float(x) for x in line[4:]])
+    start_coords = output.find("INTEGRATION POINT COORDINATES")
+    end_coords = output.find("DISTANCE OF EACH INTEGRATION POINT FROM THE CENTROID OF THE SECTION")
+    coord_data = output[start_coords:end_coords].splitlines()[2:-1]
+    for line in coord_data:
+        line = line.split()
+        xs.append(float(line[1]))
+        ys.append(float(line[2]))
+
+    # Calculate area of concrete and steel layers
+    A_conc = a_conc * b_conc
+    A_steel = a_steel * b_steel
+
+    # Calculate centroid of the section
+    x_c = (a_steel * b_steel * t_steel * b_conc / 2 + A_conc * (t_steel + b_conc / 2 - t_conc / 2)) / (A_conc + A_steel)
+    y_c = (b_steel * t_steel * a_steel / 2 + A_conc * (a_steel / 2 - b_steel / 2)) / (A_conc + A_steel)
+
+    # Calculate equivalent thickness
+    sum_f_conc = sum([f[0] for f in forces if f[0] > 0])
+    sum_f_steel = sum([f[1] for f in forces if f[1] > 0])
+    sum_m_conc = sum([m[2] for m in moments if m[2] > 0])
+    sum_m_steel = sum([m[0] for m in moments if m[0] > 0])
+    t_equiv = P / (b_conc * f_conc + b_steel * f_steel)
+    t_equiv += sum_f_conc * xs[0] / (2 * A_conc * f_conc)
+    t_equiv += sum_f_steel * xs[-1] / (2 * A_steel * f_steel)
+    t_equiv += sum_m_conc * xs[0] / (2 * A_conc * y_c * f_conc)
+    t_equiv += sum_m_steel * xs[-1] / (2 * A_steel * (b_steel - y_c) * f_steel)
+
+    return t_equiv
+
