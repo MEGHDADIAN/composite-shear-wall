@@ -1,0 +1,56 @@
+import math
+
+# Calculate the required shear strength for the composite wall
+def calc_shear_strength(b, d, tw, fc, fy, hw, tw_min=0.25, fy_min=300):
+    if tw < tw_min:
+        raise ValueError("tw should be greater than or equal to 0.25 mm")
+    if fy < fy_min:
+        raise ValueError("fy should be greater than or equal to 300 MPa")
+    Aw = hw * tw
+    Ac = b * d
+    Vc = 0.85 * fc * Ac
+    Vs = fy * Aw / math.sqrt(3)
+    Vmax = max(Vc, Vs)
+    return Vmax
+
+# Calculate the required thickness of the steel sheet for the composite wall
+def calc_steel_thickness(b, d, fc, fy, hw, tw_min=0.25, fy_min=300, fy_max=600):
+    if fy < fy_min:
+        raise ValueError("fy should be greater than or equal to 300 MPa")
+    if fy > fy_max:
+        raise ValueError("fy should be less than or equal to 600 MPa")
+    tw = tw_min
+    while True:
+        Vmax = calc_shear_strength(b, d, tw, fc, fy, hw, tw_min, fy_min)
+        Vs = fy * hw * tw / math.sqrt(3)
+        if Vmax <= Vs:
+            break
+        tw += 0.25
+    return tw
+
+# Calculate the required dimensions of the openings for the composite wall
+def calc_opening_dimensions(hw, tw):
+    h = hw - 2 * tw
+    w = 2 * hw - tw
+    return h, w
+
+# Calculate the equivalent solid section dimensions of the composite wall
+def calc_solid_section_dimensions(b, d, hw, tw, t):
+    hs = hw - 2 * tw
+    ts = t - tw
+    bs = b - 2 * t
+    ds = d - t
+    return bs, ds, hs, ts
+
+# Example usage
+if __name__ == "__main__":
+    b = 600
+    d = 5000
+    t = 150
+    fc = 30
+    fy = 400
+    hw = 400
+    tw = calc_steel_thickness(b, d, fc, fy, hw)
+    h, w = calc_opening_dimensions(hw, tw)
+    bs, ds, hs, ts = calc_solid_section_dimensions(b, d, hw, tw, t)
+    print("Solid section dimensions:", bs, ds, hs, ts)
